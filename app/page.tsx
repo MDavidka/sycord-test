@@ -40,54 +40,82 @@ export default function HomePage() {
     setVpsPrice(Math.round(total));
   }, [cpu, ram, storage, bandwidth]);
 
-  // Terminal deployment simulation
-  const runDeploymentSim = () => {
+  // Terminal deployment via Dokploy API
+  const runDeployment = async () => {
     if (terminalState !== "idle") return;
     setTerminalState("connecting");
-    setTerminalLogs(["Connecting to container sycord-project-prod via SSH on port 32768...", "Authenticating with Ed25519 SSH Key..."]);
+    setTerminalLogs(["POST /api/debug - checking Dokploy API health..."]);
 
-    setTimeout(() => {
+    try {
+      const healthRes = await fetch("/api/debug");
+      const health = await healthRes.json();
+
+      if (!health.ready) {
+        setTerminalState("idle");
+        setTerminalLogs((prev) => [
+          ...prev,
+          `✗ Dokploy API not reachable: ${health.message}`,
+          "Config: " + JSON.stringify(health.config),
+        ]);
+        return;
+      }
+
       setTerminalState("cloning");
-      setTerminalLogs(prev => [
+      setTerminalLogs((prev) => [
         ...prev,
-        "✓ Authenticated as user 'sycord'",
-        "Cloning repository github.com/sycord/nextjs-boilerplate...",
-        "Receiving objects: 100% (452/452), done.",
-        "pnpm install --frozen-lockfile"
+        `✓ Dokploy API ready: ${health.message}`,
+        "POST /api/deploy - triggering full deployment pipeline...",
+        "→ project.create, environment.create, application.create",
+        "→ application.saveGithubProvider, application.saveBuildType",
+        "→ application.redeploy",
       ]);
-    }, 1500);
 
-    setTimeout(() => {
       setTerminalState("building");
-      setTerminalLogs(prev => [
-        ...prev,
-        "✓ Installed 25 dependencies in 0.8s",
-        "npm run build",
-        "Creating an optimized production build...",
-        "✓ Compiled successfully.",
-        "✓ Standalone server output generated inside .next/standalone"
-      ]);
-    }, 3500);
+      const deployRes = await fetch("/api/deploy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "deploy",
+          name: "sycord-test",
+          githubOwner: "MDavidka",
+          githubRepo: "sycord-test",
+          githubBranch: "main",
+          domain: "sycord-test.sycord.site",
+        }),
+      });
+      const deployResult = await deployRes.json();
 
-    setTimeout(() => {
+      if (!deployResult.success) {
+        setTerminalState("idle");
+        setTerminalLogs((prev) => [
+          ...prev,
+          `✗ Deployment failed at step: ${deployResult.step}`,
+          `Error: ${deployResult.error?.message || deployResult.error?.code || "Unknown"}`,
+        ]);
+        return;
+      }
+
       setTerminalState("deploying");
-      setTerminalLogs(prev => [
+      setTerminalLogs((prev) => [
         ...prev,
-        "sycord-deploy",
-        "🚀 [Sycord Deploy] Packaging build files into build.tar.gz...",
-        "🌐 [Sycord Deploy] Publishing to Edge CDN (sycord.site)...",
-        "Unpacking tarball at /var/www/sycord.site/sycord-project-prod..."
+        `✓ Project created: ${deployResult.project?.projectId}`,
+        `✓ Application: ${deployResult.application?.applicationId}`,
+        "Deployment triggered via application.redeploy",
       ]);
-    }, 6000);
 
-    setTimeout(() => {
       setTerminalState("success");
-      setTerminalLogs(prev => [
+      setTerminalLogs((prev) => [
         ...prev,
-        "✅ [Sycord Deploy] Site successfully published!",
-        "🔗 Live Link: https://sycord-project-prod.sycord.site"
+        `✅ Deployment pipeline complete!`,
+        `Project: ${deployResult.project?.name}`,
       ]);
-    }, 8500);
+    } catch (err) {
+      setTerminalState("idle");
+      setTerminalLogs((prev) => [
+        ...prev,
+        `✗ Network error: ${err instanceof Error ? err.message : "Unknown"}`,
+      ]);
+    }
   };
 
   const resetTerminal = () => {
@@ -207,7 +235,7 @@ export default function HomePage() {
                 <div className="space-y-2 leading-relaxed overflow-y-auto max-h-[260px] no-scrollbar">
                   {terminalLogs.length === 0 ? (
                     <div className="text-gray-500 italic">
-                      Click the "Trigger Deployment" button below to simulate our automated SSH + Git build and deploy pipeline.
+                      Click the "Deploy to Dokploy" button below to trigger the full Dokploy pipeline.
                     </div>
                   ) : (
                     terminalLogs.map((log, i) => (
@@ -235,10 +263,10 @@ export default function HomePage() {
                 <div className="mt-6 pt-4 border-t border-gray-900 flex items-center justify-between gap-4">
                   {terminalState === "idle" ? (
                     <button
-                      onClick={runDeploymentSim}
+                      onClick={runDeployment}
                       className="flex items-center gap-2 rounded bg-cyan-500 px-4 py-2 font-semibold text-gray-950 hover:bg-cyan-400 transition-colors"
                     >
-                      <Play className="w-3.5 h-3.5 fill-current" /> Trigger Deployment
+                      <Play className="w-3.5 h-3.5 fill-current" /> Deploy to Dokploy
                     </button>
                   ) : (
                     <button
