@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #030712; /* Deep cyber black */
+  --foreground: #f9fafb; /* Off-white */
+  
+  --primary: #06b6d4; /* Cyan */
+  --primary-foreground: #030712;
+  
+  --secondary: #3b82f6; /* Blue */
+  --secondary-foreground: #f9fafb;
+  
+  --muted: #111827; /* Dark gray */
+  --muted-foreground: #9ca3af;
+  
+  --accent: #10b981; /* Emerald green for status/success */
+  --accent-foreground: #030712;
+  
+  --border: #1f2937;
+  --radius: 0.75rem;
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Custom Cyberpunk/SaaS styles */
+.cyber-grid {
+  background-image: 
+    linear-gradient(to right, rgba(6, 182, 212, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(6, 182, 212, 0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.cyber-glow-cyan {
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.08);
+}
+
+.cyber-glow-blue {
+  box-shadow: 0 0 30px rgba(59, 130, 246, 0.08);
+}
+
+.cyber-glow-green {
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.1);
+}
+
+/* Custom Keyframe Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s infinite ease-in-out;
+}
+
+@keyframes grid-move {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 40px;
+  }
+}
+
+.animate-grid-move {
+  animation: grid-move 20s linear infinite;
+}
+
+/* Hide scrollbar but keep functionality */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
