@@ -40,54 +40,96 @@ export default function HomePage() {
     setVpsPrice(Math.round(total));
   }, [cpu, ram, storage, bandwidth]);
 
-  // Terminal deployment simulation
-  const runDeploymentSim = () => {
+  // Terminal deployment - Dokploy API
+  const runDeployment = async () => {
     if (terminalState !== "idle") return;
     setTerminalState("connecting");
-    setTerminalLogs(["Connecting to container sycord-project-prod via SSH on port 32768...", "Authenticating with Ed25519 SSH Key..."]);
+    setTerminalLogs(["Initializing Dokploy API connection...", `API: ${process.env.NEXT_PUBLIC_DOKPLOY_URL || "dokploy:3000/api"}`]);
 
-    setTimeout(() => {
+    try {
+      const apiCall = async (action: string, params: Record<string, unknown> = {}) => {
+        const res = await fetch("/api/dokploy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, params }),
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || "API call failed");
+        return json.data;
+      };
+
       setTerminalState("cloning");
-      setTerminalLogs(prev => [
-        ...prev,
-        "✓ Authenticated as user 'sycord'",
-        "Cloning repository github.com/sycord/nextjs-boilerplate...",
-        "Receiving objects: 100% (452/452), done.",
-        "pnpm install --frozen-lockfile"
-      ]);
-    }, 1500);
+      setTerminalLogs(prev => [...prev, `Creating project: sycord-site...`]);
 
-    setTimeout(() => {
+      const project = await apiCall("project.create", {
+        name: "sycord-site",
+        description: "Sycord production deployment",
+      });
+      const projectId = project.projectId;
+      setTerminalLogs(prev => [...prev, `✓ Project created: ${projectId}`]);
+
+      setTerminalLogs(prev => [...prev, `Creating environment: production...`]);
+      const environment = await apiCall("environment.create", {
+        name: "production",
+        description: "Production environment",
+        projectId,
+      });
+      const environmentId = environment.environmentId;
+      setTerminalLogs(prev => [...prev, `✓ Environment created: ${environmentId}`]);
+
       setTerminalState("building");
-      setTerminalLogs(prev => [
-        ...prev,
-        "✓ Installed 25 dependencies in 0.8s",
-        "npm run build",
-        "Creating an optimized production build...",
-        "✓ Compiled successfully.",
-        "✓ Standalone server output generated inside .next/standalone"
-      ]);
-    }, 3500);
+      setTerminalLogs(prev => [...prev, `Creating application: sycord-web...`]);
 
-    setTimeout(() => {
+      const app = await apiCall("application.create", {
+        name: "sycord-web",
+        appName: "sycord-web",
+        description: "Sycord web application",
+        environmentId,
+      });
+      const applicationId = app.applicationId;
+      setTerminalLogs(prev => [...prev, `✓ Application created: ${applicationId}`]);
+
+      setTerminalLogs(prev => [...prev, `Configuring build type (nixpacks)...`]);
+      await apiCall("application.saveBuildType", {
+        applicationId,
+        buildType: "nixpacks",
+        dockerContextPath: ".",
+      });
+      setTerminalLogs(prev => [...prev, `✓ Build type set to nixpacks`]);
+
       setTerminalState("deploying");
-      setTerminalLogs(prev => [
-        ...prev,
-        "sycord-deploy",
-        "🚀 [Sycord Deploy] Packaging build files into build.tar.gz...",
-        "🌐 [Sycord Deploy] Publishing to Edge CDN (sycord.site)...",
-        "Unpacking tarball at /var/www/sycord.site/sycord-project-prod..."
-      ]);
-    }, 6000);
+      setTerminalLogs(prev => [...prev, `Configuring Git provider (https://github.com/MDavidka/sycord-test)...`]);
+      await apiCall("application.saveGitProvider", {
+        applicationId,
+        customGitUrl: "https://github.com/MDavidka/sycord-test.git",
+        customGitBranch: "main",
+        customGitBuildPath: "/",
+      });
+      setTerminalLogs(prev => [...prev, `✓ Git provider configured (MDavidka/sycord-test @ main)`]);
 
-    setTimeout(() => {
+      setTerminalLogs(prev => [...prev, `🚀 Triggering deployment on Dokploy...`]);
+      await apiCall("application.redeploy", {
+        applicationId,
+        title: "Deploy sycord.site",
+        description: "Automated deployment via Sycord platform",
+      });
+
       setTerminalState("success");
       setTerminalLogs(prev => [
         ...prev,
-        "✅ [Sycord Deploy] Site successfully published!",
-        "🔗 Live Link: https://sycord-project-prod.sycord.site"
+        `✓ Deployment triggered successfully!`,
+        `🔗 Application ID: ${applicationId}`,
+        `📦 Dokploy will now build and deploy your application.`,
+        `✅ Site will be live at your configured domain.`,
       ]);
-    }, 8500);
+    } catch (err) {
+      setTerminalState("idle");
+      setTerminalLogs(prev => [
+        ...prev,
+        `✗ Error: ${err instanceof Error ? err.message : "Deployment failed"}`,
+        `💡 Ensure DOKPLOY_API_KEY and DOKPLOY_API_URL are configured.`,
+      ]);
+    }
   };
 
   const resetTerminal = () => {
@@ -207,7 +249,7 @@ export default function HomePage() {
                 <div className="space-y-2 leading-relaxed overflow-y-auto max-h-[260px] no-scrollbar">
                   {terminalLogs.length === 0 ? (
                     <div className="text-gray-500 italic">
-                      Click the "Trigger Deployment" button below to simulate our automated SSH + Git build and deploy pipeline.
+                      Click the "Trigger Deployment" button below to deploy via the Dokploy API.
                     </div>
                   ) : (
                     terminalLogs.map((log, i) => (
@@ -235,7 +277,7 @@ export default function HomePage() {
                 <div className="mt-6 pt-4 border-t border-gray-900 flex items-center justify-between gap-4">
                   {terminalState === "idle" ? (
                     <button
-                      onClick={runDeploymentSim}
+                      onClick={runDeployment}
                       className="flex items-center gap-2 rounded bg-cyan-500 px-4 py-2 font-semibold text-gray-950 hover:bg-cyan-400 transition-colors"
                     >
                       <Play className="w-3.5 h-3.5 fill-current" /> Trigger Deployment
