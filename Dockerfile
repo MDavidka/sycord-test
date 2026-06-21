@@ -3,7 +3,7 @@ WORKDIR /app
 
 # Install dependencies first to leverage Docker layer caching
 COPY package.json package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 
 # Copy the rest of the application files
 COPY . .
