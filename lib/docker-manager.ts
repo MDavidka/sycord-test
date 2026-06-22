@@ -30,11 +30,11 @@ export class DockerManager {
    * Generates a modern, secure Ed25519 SSH Keypair in memory
    */
   private static generateSSHKeypair(): { publicKey: string; privateKey: string } {
-    const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519", {
+    const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519" as any, {
       privateKeyEncoding: { format: "pem", type: "pkcs8" },
       publicKeyEncoding: { format: "openssh", type: "public" }
-    });
-    return { publicKey, privateKey };
+    } as any);
+    return { publicKey: publicKey as any, privateKey: privateKey as any };
   }
 
   /**
